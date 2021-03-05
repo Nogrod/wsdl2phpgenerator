@@ -7,6 +7,7 @@
 
 namespace Wsdl2PhpGenerator;
 
+use Doctrine\Inflector\InflectorFactory;
 use Exception;
 use Psr\Log\LoggerInterface;
 use Wsdl2PhpGenerator\Filter\FilterFactory;
@@ -49,6 +50,8 @@ class Generator implements GeneratorInterface
      */
     protected $logger;
 
+    private $inflector;
+
     /**
      * Construct the generator.
      */
@@ -56,6 +59,7 @@ class Generator implements GeneratorInterface
     {
         $this->service = null;
         $this->types   = [];
+        $this->inflector = InflectorFactory::create()->build();
     }
 
     /**
@@ -139,12 +143,13 @@ class Generator implements GeneratorInterface
 
         foreach ($types as $typeNode) {
             $type = null;
+            $typeNodeName = $this->inflector->classify($typeNode->getName());
 
             if ($typeNode->isComplex()) {
                 if ($typeNode->isArray()) {
-                    $type = new ArrayType($this->config, $typeNode->getName());
+                    $type = new ArrayType($this->config, $typeNodeName);
                 } else {
-                    $type = new ComplexType($this->config, $typeNode->getName());
+                    $type = isset($this->types[$typeNodeName]) ? $this->types[$typeNodeName] : new ComplexType($this->config, $typeNodeName);
                 }
 
                 $this->log('Loading type '.$type->getPhpIdentifier());
@@ -156,15 +161,15 @@ class Generator implements GeneratorInterface
                     // by setting the "nillable" attribute to "true" or by setting the "minOccurs" attribute to "0".
                     // See http://www.ibm.com/developerworks/webservices/library/ws-tip-null/index.html
                     $nullable = $typeNode->isElementNillable($name) || $typeNode->getElementMinOccurs($name) === 0;
-                    $type->addMember($typeName, $name, $nullable);
+                    $type->addMember($typeName, $this->inflector->camelize($name), $nullable);
                 }
             } elseif ($enumValues = $typeNode->getEnumerations()) {
-                $type = new Enum($this->config, $typeNode->getName(), $typeNode->getRestriction());
+                $type = new Enum($this->config, $typeNodeName, $typeNode->getRestriction());
                 array_walk($enumValues, function ($value) use ($type) {
                     $type->addValue($value);
                 });
             } elseif ($pattern = $typeNode->getPattern()) {
-                $type = new Pattern($this->config, $typeNode->getName(), $typeNode->getRestriction());
+                $type = new Pattern($this->config, $typeNodeName, $typeNode->getRestriction());
                 $type->setValue($pattern);
             }
 
@@ -179,7 +184,7 @@ class Generator implements GeneratorInterface
                     }
                 }
                 if (!$already_registered) {
-                    $this->types[$typeNode->getName()] = $type;
+                    $this->types[$typeNodeName] = $type;
                 }
             }
         }
