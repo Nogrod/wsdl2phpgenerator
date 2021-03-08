@@ -57,8 +57,8 @@ class Generator implements GeneratorInterface
      */
     public function __construct()
     {
-        $this->service = null;
-        $this->types   = [];
+        $this->service   = null;
+        $this->types     = [];
         $this->inflector = InflectorFactory::create()->build();
     }
 
@@ -142,14 +142,20 @@ class Generator implements GeneratorInterface
         $types = $this->wsdl->getTypes();
 
         foreach ($types as $typeNode) {
-            $type = null;
+            $type         = null;
             $typeNodeName = $this->inflector->classify($typeNode->getName());
+            $tmpNodeName  = $typeNodeName;
+            $i            = 1;
+            while (isset($this->types[$tmpNodeName])) {
+                $tmpNodeName = $typeNodeName.$i++;
+            }
+            $typeNodeName = $tmpNodeName;
 
             if ($typeNode->isComplex()) {
                 if ($typeNode->isArray()) {
                     $type = new ArrayType($this->config, $typeNodeName);
                 } else {
-                    $type = isset($this->types[$typeNodeName]) ? $this->types[$typeNodeName] : new ComplexType($this->config, $typeNodeName);
+                    $type = /*isset($this->types[$typeNodeName]) ? $this->types[$typeNodeName] : */new ComplexType($this->config, $typeNodeName);
                 }
 
                 $this->log('Loading type '.$type->getPhpIdentifier());
@@ -161,7 +167,7 @@ class Generator implements GeneratorInterface
                     // by setting the "nillable" attribute to "true" or by setting the "minOccurs" attribute to "0".
                     // See http://www.ibm.com/developerworks/webservices/library/ws-tip-null/index.html
                     $nullable = $typeNode->isElementNillable($name) || $typeNode->getElementMinOccurs($name) === 0;
-                    $type->addMember($typeName, $this->inflector->camelize($name), $nullable);
+                    $type->addMember($typeName, $name, $nullable);
                 }
             } elseif ($enumValues = $typeNode->getEnumerations()) {
                 $type = new Enum($this->config, $typeNodeName, $typeNode->getRestriction());
